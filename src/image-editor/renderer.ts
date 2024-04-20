@@ -1,6 +1,6 @@
 import { Cursor, Rect } from "./models";
 
-const maxSnapshots = 10;
+const maxSnapshots = 50;
 
 export class Renderer {
     private undoStack: ImageData[] = [];
@@ -11,7 +11,28 @@ export class Renderer {
     private baseImageLayer: HTMLCanvasElement;
     private refImageLayer: HTMLCanvasElement;
     private editLayer: HTMLCanvasElement;
-    // private overlayLayer: HTMLCanvasElement;
+    private overlayLayer: HTMLCanvasElement;
+
+    private _overlayImageOpacity: number = 1;
+    private _referenceImageOpacity: number = 0.3;
+
+    public get overlayImageOpacity(): number {
+        return this._overlayImageOpacity;
+    }
+
+    public set overlayImageOpacity(opacity: number) {
+        this._overlayImageOpacity = opacity;
+        this.render();
+    }
+
+    public get referenceImageOpacity(): number {
+        return this._referenceImageOpacity;
+    }
+
+    public set referenceImageOpacity(opacity: number) {
+        this._referenceImageOpacity = opacity;
+        this.render();
+    }
 
     private selectionOverlay: Rect | undefined;
     private hasSelection: boolean = false;
@@ -24,7 +45,7 @@ export class Renderer {
     private height = 0;
     private _renderReferenceImages = true;
 
-    private snapshotListener: (() => void) | null = null;
+    private snapshotListeners: (() => void)[];
 
     private referenceImages: HTMLCanvasElement[] = [];
 
@@ -80,7 +101,8 @@ export class Renderer {
         this.baseImageLayer = document.createElement("canvas");
         this.refImageLayer = document.createElement("canvas");
         this.editLayer = document.createElement("canvas");
-        // this.overlayLayer = document.createElement("canvas");
+        this.overlayLayer = document.createElement("canvas");
+        this.snapshotListeners = [];
 
         this.zoom = 1;
         this.offsetX = 0;
@@ -115,7 +137,7 @@ export class Renderer {
                 ctx.putImageData(imageData, 0, 0);
                 this.render();
             }
-            this.notifySnapshotListener();
+            this.notifySnapshotListeners();
         }
     }
 
@@ -131,13 +153,13 @@ export class Renderer {
                 ctx.putImageData(imageData, 0, 0);
                 this.render();
             }
-            this.notifySnapshotListener();
+            this.notifySnapshotListeners();
         }
     }
 
     clearRedoStack() {
         this.redoStack = [];
-        this.notifySnapshotListener();
+        this.notifySnapshotListeners();
     }
 
     canUndo(): boolean {
@@ -148,8 +170,14 @@ export class Renderer {
         return !this.hasSelection && this.redoStack.length > 0;
     }
 
-    onSnapshot(listener: () => void) {
-        this.snapshotListener = listener;
+    addSnapshotListener(listener: () => void) {
+        this.snapshotListeners.push(listener);
+    }
+
+    removeSnapshotListener(listener: () => void) {
+        this.snapshotListeners = this.snapshotListeners.filter(
+            l => l !== listener
+        );
     }
 
     snapshot() {
@@ -174,13 +202,13 @@ export class Renderer {
                 this.currentSnapshot = snapshot;
             }
 
-            this.notifySnapshotListener();
+            this.notifySnapshotListeners();
         }
     }
 
-    private notifySnapshotListener() {
-        if (this.snapshotListener) {
-            this.snapshotListener();
+    private notifySnapshotListeners() {
+        for (let listener of this.snapshotListeners) {
+            listener();
         }
     }
 
@@ -201,27 +229,16 @@ export class Renderer {
             );
             // context.drawImage(this.backgroundLayer, 0, 0);
             context.drawImage(this.baseImageLayer, 0, 0);
-            // draw ref image layer at 0.2 opacity
-            context.globalAlpha = 0.2;
+            context.globalAlpha = this.referenceImageOpacity;
             context.drawImage(this.refImageLayer, 0, 0);
             // set opacity back to 1
             context.globalAlpha = 1;
             context.drawImage(this.editLayer, 0, 0);
 
-            // context.drawImage(this.overlayLayer, 0, 0);
+            context.globalAlpha = this.overlayImageOpacity;
+            context.drawImage(this.overlayLayer, 0, 0);
             this.drawOverlay(context, this.width, this.height);
             context.setTransform(1, 0, 0, 1, 0, 0);
-            if (this.renderReferenceImages) {
-                context.globalAlpha = 0.7;
-                let top = 10;
-                this.referenceImages.forEach(image => {
-                    const ratio = 100.0 / image.width;
-                    const width = image.width * ratio;
-                    const height = image.height * ratio;
-                    context.drawImage(image, this.canvas.width - width - 10, top, width, height);
-                    top += height + 10;
-                });
-            }
         }
     }
 
@@ -288,6 +305,46 @@ export class Renderer {
         }
     }
 
+    clearReferenceImage() {
+        const context = this.refImageLayer.getContext("2d");
+        if (context) {
+            context.clearRect(
+                0,
+                0,
+                this.refImageLayer.width,
+                this.refImageLayer.height
+            );
+            this.render();
+        }
+    }
+
+    setOverlayImage(image: HTMLImageElement | HTMLCanvasElement) {
+        const context = this.overlayLayer.getContext("2d");
+        if (context) {
+            context.clearRect(
+                0,
+                0,
+                this.overlayLayer.width,
+                this.overlayLayer.height
+            );
+            context.drawImage(image, 0, 0, this.overlayLayer.width, this.overlayLayer.height);
+            this.render();
+        }
+    }
+
+    clearOverlayImage() {
+        const context = this.overlayLayer.getContext("2d");
+        if (context) {
+            context.clearRect(
+                0,
+                0,
+                this.overlayLayer.width,
+                this.overlayLayer.height
+            );
+            this.render();
+        }
+    }
+
     getReferenceImageColor(x: number, y: number): string {
         const context = this.refImageLayer.getContext("2d");
         if (context) {
@@ -313,6 +370,8 @@ export class Renderer {
             this.refImageLayer.height = image.height;
             this.editLayer.width = image.width;
             this.editLayer.height = image.height;
+            this.overlayLayer.width = image.width;
+            this.overlayLayer.height = image.height;
             // set image size
             this.width = image.width;
             this.height = image.height;
@@ -383,7 +442,7 @@ export class Renderer {
             this.hasSelection = !!imageData;
             this.render();
         }
-        this.notifySnapshotListener();
+        this.notifySnapshotListeners();
     }
 
     private drawOverlay(
@@ -393,6 +452,7 @@ export class Renderer {
     ) {
         const lineWidth = Math.max(this.width / 512, this.height / 512);
         if (context) {
+            
             context.strokeStyle = "white";
             context.lineWidth = lineWidth;
             context.strokeRect(0, 0, width, height);
@@ -578,8 +638,8 @@ export class Renderer {
         throw new Error("Could not create canvas context");
     }
 
-    getEncodedImage(selection: Rect | null, format: "png" | "webp" | "jpeg"): string | undefined {
-        const imageData = this.getImageData(selection);
+    getEncodedImage(selection: Rect | null, format: "png" | "webp" | "jpeg", includeOverlay: boolean = false): string | undefined {
+        const imageData = this.getImageData(selection, includeOverlay);
         if (imageData) {
             return this.imageDataToEncodedImage(imageData, format);
         }
@@ -628,6 +688,7 @@ export class Renderer {
 
     getImageData(
         selection: Rect | null,
+        includeOverlay: boolean = false
     ): ImageData | undefined {
         if (!selection) {
             selection = {
@@ -638,19 +699,46 @@ export class Renderer {
             };
         }
         // get image data of the selection
-        const imageLayer =this.baseImageLayer;
+        const imageLayer = this.baseImageLayer;
         if (!imageLayer) {
             return;
         }
-        let context = imageLayer.getContext("2d");
+        const overlayLayer = this.overlayLayer;
+        if (!overlayLayer) {
+            return;
+        }
+        // create a temporary canvas to draw the image data and overlay
+        const tempCanvas = document.createElement("canvas");
+        tempCanvas.width = selection.width;
+        tempCanvas.height = selection.height;
+        const context = tempCanvas.getContext("2d");
         if (context) {
-            let imageData = context.getImageData(
+            context.drawImage(
+                imageLayer,
                 selection.x,
                 selection.y,
                 selection.width,
+                selection.height,
+                0,
+                0,
+                selection.width,
                 selection.height
             );
-            return imageData;
+            if (includeOverlay) {
+                context.globalAlpha = this.overlayImageOpacity;
+                context.drawImage(
+                    overlayLayer,
+                    selection.x,
+                    selection.y,
+                    selection.width,
+                    selection.height,
+                    0,
+                    0,
+                    selection.width,
+                    selection.height
+                );
+            }
+            return context.getImageData(0, 0, selection.width, selection.height);
         }
     }
 
@@ -921,7 +1009,7 @@ export class Renderer {
         }
         this.render();
         this.hasSelection = true;
-        this.notifySnapshotListener();
+        this.notifySnapshotListeners();
     }
 
     expandToOverlay() {

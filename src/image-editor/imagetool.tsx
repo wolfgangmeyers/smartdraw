@@ -1,4 +1,4 @@
-import React, { FC, useState } from "react";
+import React, { FC, useEffect, useState } from "react";
 import loadImage from "blueimp-load-image";
 import saveAs from "file-saver";
 
@@ -6,6 +6,7 @@ import { Renderer } from "./renderer";
 import { BaseTool } from "./tool";
 import { Dropdown } from "react-bootstrap";
 import { useCache } from "../lib/cache";
+import { OpacityControls } from "./OpacityControls";
 
 interface Props {
     renderer: Renderer;
@@ -13,7 +14,6 @@ interface Props {
 }
 
 export const ImportExportControls: FC<Props> = ({ renderer, tool }) => {
-
     const onImageSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
         const files = event.target.files;
         if (files && files.length > 0) {
@@ -46,8 +46,21 @@ export const ImportExportControls: FC<Props> = ({ renderer, tool }) => {
         }
     }
 
+    const onOverlayImageSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (files && files.length > 0) {
+            loadImage(
+                files[0],
+                (img) => {
+                    renderer.setOverlayImage(img as HTMLImageElement);
+                },
+                { canvas: false }
+            );
+        }
+    }
+
     const onExport = (format: "png" | "webp" | "jpeg") => {
-        const encodedImage = renderer.getEncodedImage(null, format);
+        const encodedImage = renderer.getEncodedImage(null, format, true);
         if (encodedImage) {
             // base64 decode
             const byteString = atob(encodedImage);
@@ -102,6 +115,22 @@ export const ImportExportControls: FC<Props> = ({ renderer, tool }) => {
                 </label>
             </div>
             <div className="form-group">
+                <label
+                    id="loadoverlay-wrapper"
+                    className={`btn btn-primary `}
+                    style={{ display: "inline" }}
+                >
+                    {/* upload overlay image */}
+                    <i className="fas fa-upload"></i>&nbsp; Import Overlay Image
+                    <input
+                        id="loadoverlay"
+                        type="file"
+                        style={{ display: "none" }}
+                        onChange={onOverlayImageSelected}
+                    />
+                </label>
+            </div>
+            <div className="form-group">
                 <Dropdown>
                     <Dropdown.Toggle variant="primary" id="dropdown-basic">
                         <i className="fas fa-download"></i>&nbsp; Export Image
@@ -113,6 +142,7 @@ export const ImportExportControls: FC<Props> = ({ renderer, tool }) => {
                     </Dropdown.Menu>
                 </Dropdown>
             </div>
+            <OpacityControls renderer={renderer} />
         </>
     );
 };

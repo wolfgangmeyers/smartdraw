@@ -3,6 +3,9 @@ import { Renderer } from "./renderer";
 import { BaseTool, Tool } from "./tool";
 import { PaletteButton } from "./PaletteButton";
 import { ColorPicker } from "./ColorPicker";
+import { OpacityControls } from "./OpacityControls";
+import { useCache } from "../lib/cache";
+import TimelapseRecorder from "./TimelapseRecorder";
 
 export const defaultColors = [
     "#FFFFFF",
@@ -161,6 +164,7 @@ export class PencilTool extends BaseTool implements Tool {
             this.panning = false;
         }
         this.sync();
+        this.renderer.commitSelection();
     }
 
     onMouseUp(event: React.MouseEvent<HTMLCanvasElement, MouseEvent>): void {
@@ -233,14 +237,14 @@ function addToPalette(palette: string[], color: string): string[] {
 
 export const Controls: FC<ControlsProps> = ({ renderer, tool, colors }) => {
     const [brushSize, setBrushSize] = useState(10);
-    const [brushColor, setBrushColor] = useState("#000000");
+    const [brushColor, setBrushColor] = useCache("brushColor", "magic");
     const [palette, setPalette] = useState(colors);
-    const [useReferenceColors, setUseReferenceColors] = useState(false);
-    const [dirty, setDirty] = useState(false);
+    const [useReferenceColors, setUseReferenceColors] = useCache("useReferenceColors", true);
+    // const [dirty, setDirty] = useState(false);
 
-    const [maxBrushSize, setMaxBrushSize] = useState(renderer.getWidth() / 10);
+    const [maxBrushSize, setMaxBrushSize] = useCache("maxBrushSize", renderer.getWidth() / 10);
 
-    tool.onDirty(setDirty);
+    // tool.onDirty(setDirty);
 
     useEffect(() => {
         tool.updateArgs({
@@ -325,7 +329,7 @@ export const Controls: FC<ControlsProps> = ({ renderer, tool, colors }) => {
                     onColorSelected={(color) => onColorSelected(color)}
                 />
             </div>
-            <div
+            {/* <div
                 className="form-group"
                 style={{
                     marginTop: "16px",
@@ -345,7 +349,9 @@ export const Controls: FC<ControlsProps> = ({ renderer, tool, colors }) => {
                 >
                     Save
                 </button>
-            </div>
+            </div> */}
+            <OpacityControls renderer={renderer} />
+            <TimelapseRecorder renderer={renderer} />
         </div>
     );
 };

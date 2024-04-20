@@ -11,7 +11,6 @@ import {
 } from "./pencil-tool";
 import { SmudgeTool, SmudgeControls } from "./smudge-tool";
 import { ImportExportControls } from "./imagetool";
-import { BusyModal } from "../components/BusyModal";
 
 interface CanPreventDefault {
     preventDefault: () => void;
@@ -29,10 +28,7 @@ export const anonymousClient = axios.create();
 delete anonymousClient.defaults.headers.common["Authorization"];
 
 export const ImageEditor = () => {
-    const [showSelectionControls, setShowSelectionControls] = useState(false);
     const tools: Array<ToolConfig> = [
-
-        
         {
             name: "pencil",
             iconClass: "fas fa-pencil-alt",
@@ -49,22 +45,22 @@ export const ImageEditor = () => {
                 );
             },
         },
-        {
-            name: "smudge",
-            // finger icon
-            iconClass: "fas fa-hand-pointer",
-            constructor: (r: Renderer) => new SmudgeTool(r),
-            defaultArgs: {},
-            renderControls: (t: Tool, renderer: Renderer) => {
-                return (
-                    <SmudgeControls
-                        tool={t as SmudgeTool}
-                        renderer={renderer}
-                        key={"smudge-controls"}
-                    />
-                );
-            },
-        },
+        // {
+        //     name: "smudge",
+        //     // finger icon
+        //     iconClass: "fas fa-hand-pointer",
+        //     constructor: (r: Renderer) => new SmudgeTool(r),
+        //     defaultArgs: {},
+        //     renderControls: (t: Tool, renderer: Renderer) => {
+        //         return (
+        //             <SmudgeControls
+        //                 tool={t as SmudgeTool}
+        //                 renderer={renderer}
+        //                 key={"smudge-controls"}
+        //             />
+        //         );
+        //     },
+        // },
         {
             name: "image",
             iconClass: "fas fa-image",
@@ -87,7 +83,6 @@ export const ImageEditor = () => {
     const [toolConfig, setToolConfig] = useState<ToolConfig | null>(null);
     const [canUndo, setCanUndo] = useState(false);
     const [canRedo, setCanRedo] = useState(false);
-    const [busyMessage, setBusyMessage] = useState<string | null>(null);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -111,10 +106,16 @@ export const ImageEditor = () => {
     useEffect(() => {
         if (renderer) {
             onSelectTool(tools[0]);
-            renderer.onSnapshot(() => {
+            const onSnapshot = ( ) => {
                 setCanUndo(renderer.canUndo());
                 setCanRedo(renderer.canRedo());
-            });
+
+                // TODO: get image data as jpg with overlay included, submit to backend
+            };
+            renderer.addSnapshotListener(onSnapshot);
+            return () => {
+                renderer.removeSnapshotListener(onSnapshot);
+            };
         }
     }, [renderer]);
 
@@ -317,22 +318,6 @@ export const ImageEditor = () => {
                                     tool.onPointerUp(e)
                                 }
                             ></canvas>
-                            {showSelectionControls && (
-                                <>
-                                    <button
-                                        className="btn btn-secondary canvas-select-left"
-                                        onClick={() => tool!.select("left")}
-                                    >
-                                        <i className="fas fa-chevron-left"></i>
-                                    </button>
-                                    <button
-                                        className="btn btn-secondary canvas-select-right"
-                                        onClick={() => tool!.select("right")}
-                                    >
-                                        <i className="fas fa-chevron-right"></i>
-                                    </button>
-                                </>
-                            )}
                         </div>
                     </div>
                     <div className="row">
@@ -359,11 +344,6 @@ export const ImageEditor = () => {
                     {/* vertically center button within the div */}
                 </div>
             </div>
-            {busyMessage && (
-                <BusyModal show={true} title="Please Wait">
-                    {busyMessage}
-                </BusyModal>
-            )}
         </>
     );
 };
