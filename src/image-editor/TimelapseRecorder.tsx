@@ -51,7 +51,7 @@ const TimelapseRecorder: React.FC<Props> = ({ renderer }) => {
                     lastUpload = moment();
                 }
             }
-        }, 1000);
+        }, 5000);
 
         return () => {
             renderer.removeSnapshotListener(onSnapshot);

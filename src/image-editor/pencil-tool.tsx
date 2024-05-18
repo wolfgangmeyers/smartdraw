@@ -160,11 +160,12 @@ export class PencilTool extends BaseTool implements Tool {
                     this.colorPickedListener(this.lastPickedColor);
                 }
             }
+            this.renderer.commitSelection();
         } else if (event.button === 1) {
             this.panning = false;
         }
         this.sync();
-        this.renderer.commitSelection();
+        
     }
 
     onMouseUp(event: React.MouseEvent<HTMLCanvasElement, MouseEvent>): void {
